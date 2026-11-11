@@ -1,0 +1,57 @@
+name: Refresh data
+
+# Manual refresh: Actions tab -> "Refresh data" -> "Run workflow"
+# (or the "Refresh data" button on the website, which opens this page).
+# One BigQuery query (~0.75 GB scan), builds the Excel + CSV files, then redeploys the site.
+# The data files are NOT committed to git (they are ~15 MB each), they go straight to GitHub Pages.
+# A push to main that changes the page, the SQL or the script also runs a refresh, so the site never loses its files.
+# To refresh automatically, uncomment the schedule block. Cron is UTC: "30 0 * * *" = 07:30 WIB.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["index.html", "sql/**", "scripts/**", ".github/workflows/**"]
+  # schedule:
+  #   - cron: "30 0 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: refresh-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install --quiet google-cloud-bigquery openpyxl
+
+      - name: Export from BigQuery and build files
+        run: python scripts/refresh.py
+
+      - name: Add page
+        run: cp index.html site/
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5

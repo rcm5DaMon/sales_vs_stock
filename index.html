@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Region 5 · Sales vs Stock · Raw data download</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0; --surface-1: #fcfcfb; --border: #e3e2dd;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #85847f;
+    --accent: #2a78d6; --accent-soft: #e6f0fc; --good-text: #006300; --critical-text: #b02a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2b;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e88;
+      --accent: #3987e5; --accent-soft: #1c2c40; --good-text: #4cc94c; --critical-text: #f07a7a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 20px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .sub { color: var(--text-secondary); margin-top: 2px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { font-size: 12px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border);
+          border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .btn { font: inherit; font-size: 13px; color: #fff; background: var(--accent); border: 0; border-radius: 8px;
+         padding: 6px 12px; cursor: pointer; text-decoration: none; white-space: nowrap; display: inline-block; }
+  .btn[aria-disabled="true"] { background: var(--text-muted); cursor: default; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .dl { display: flex; gap: 14px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+        text-decoration: none; color: inherit; background: var(--surface-0); transition: border-color .15s, background .15s; }
+  .dl:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .dl .ico { font-size: 12px; font-weight: 700; color: #fff; border-radius: 6px; padding: 8px 0; width: 46px; text-align: center; flex: none; }
+  .dl .t { font-weight: 600; }
+  .dl .d { font-size: 12px; color: var(--text-secondary); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  td.n, th.n { text-align: right; }
+  tfoot td { font-weight: 600; border-bottom: 0; }
+  .cols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cols span { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+               background: var(--surface-0); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; }
+  .note { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+  .err { color: var(--critical-text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Region 5 · Sales vs Stock</h1>
+      <div class="sub" id="sub">Raw data download</div>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section class="card">
+    <h2>Download</h2>
+    <div class="downloads" id="downloads"><div class="d">Loading…</div></div>
+    <div class="note">Both files hold the same rows. The CSV is smaller to download; unzip it and open in Excel.</div>
+  </section>
+
+  <section class="card">
+    <h2>What's inside</h2>
+    <table>
+      <thead><tr><th>line</th><th>Content</th><th class="n">Rows</th><th class="n">Qty</th></tr></thead>
+      <tbody id="lines"></tbody>
+      <tfoot id="total"></tfoot>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Columns</h2>
+    <div class="cols" id="cols"></div>
+    <div class="note">
+      Source: <code>e-smart-433113.region_data.sales_vs_stock_update</code>. Type 2 = Model_Type_Detail + Model_Category for Devices,
+      article_description for everything else. Nett values are in full Rupiah.
+    </div>
+  </section>
+</div>
+
+<script>
+// ===== Config: your GitHub repo, so the "Refresh data" button opens the workflow =====
+const GITHUB_REPO = "rcm5DaMon/sales_vs_stock";
+
+const nf = new Intl.NumberFormat("id-ID");
+const MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const longDate = (s) => new Date(s + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const mb = (b) => (b / 1048576).toFixed(1) + " MB";
+const describe = (line) =>
+  /^\d+$/.test(line) ? `Sales · ${MONTHS[+line] || "month " + line}`
+  : line === "stock" ? "Store stock (latest)"
+  : line === "stock_dc" ? "Warehouse / DC stock (latest)"
+  : line;
+
+function refreshBtn() {
+  return GITHUB_REPO
+    ? `<a class="btn" target="_blank" rel="noopener" title="Opens GitHub Actions: click 'Run workflow', wait ~3 minutes, then reload this page"
+          href="https://github.com/${GITHUB_REPO}/actions/workflows/refresh.yml">Refresh data ↗</a>`
+    : `<span class="btn" aria-disabled="true" title="Set GITHUB_REPO in index.html">Refresh data</span>`;
+}
+
+fetch("data/meta.json", { cache: "no-store" })
+  .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then((j) => {
+    const v = Date.parse(j.refreshed_at.replace(" ", "T") + ":00+07:00");  // cache-buster per refresh
+    document.getElementById("sub").textContent =
+      `Sales ${longDate(j.sales_from)} – ${longDate(j.sales_to)} + latest stock · ${nf.format(j.rows)} rows`;
+    document.getElementById("meta").innerHTML = `
+      <span class="chip">Refreshed ${j.refreshed_at} WIB</span>${refreshBtn()}`;
+
+    const f = j.files;
+    document.getElementById("downloads").innerHTML = `
+      <a class="dl" href="data/${f.xlsx.name}?v=${v}" download>
+        <span class="ico" style="background:#1d6f42">XLSX</span>
+        <span><div class="t">Excel file</div><div class="d">${f.xlsx.name} · ${mb(f.xlsx.bytes)}</div></span>
+      </a>
+      <a class="dl" href="data/${f.zip.name}?v=${v}" download>
+        <span class="ico" style="background:#52514e">CSV</span>
+        <span><div class="t">CSV (zipped)</div><div class="d">${f.zip.name} · ${mb(f.zip.bytes)}</div></span>
+      </a>`;
+
+    document.getElementById("lines").innerHTML = j.by_line.map((x) =>
+      `<tr><td><code>${x.line}</code></td><td>${describe(x.line)}</td><td class="n">${nf.format(x.rows)}</td><td class="n">${nf.format(x.qty)}</td></tr>`).join("");
+    document.getElementById("total").innerHTML =
+      `<tr><td></td><td>Total</td><td class="n">${nf.format(j.rows)}</td><td class="n"></td></tr>`;
+    document.getElementById("cols").innerHTML = j.columns.map((c) => `<span>${c}</span>`).join("");
+  })
+  .catch((e) => {
+    document.getElementById("meta").innerHTML = refreshBtn();
+    document.getElementById("downloads").innerHTML =
+      `<div class="err">No data yet (${e.message}). Run the "Refresh data" workflow once, then reload.</div>`;
+  });
+</script>
+</body>
+</html>
