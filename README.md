@@ -37,7 +37,7 @@ Qty, Nett Exc Tax, Nett with Tax, week_billing, Region, business_unit, Product_C
 channel, lob, tsh, ROFO_Category, Detail_Cat, Model_Type, Model_Type Detail, Model_Category, Colour`
 
 - `line`: for sales rows this is the billing month (`10`, `11`). Stock rows are `stock` (stores) or `stock_dc` (warehouse/DC).
-- `Type 2`: for `Product_Category = Device` it is `Model_Type_Detail` + space + `Model_Category` (e.g. "IPHONE 18 PRO MAX 256 GB"); for everything else it is `article_description`.
+- `Type 2` = `type_2` from `sales_b2c.master_product`, joined on article code (same values as `sales_vs_stock.type_2`).
 - `territory` and `ROFO_Category` come straight from the source table.
 - `Region` = "Region 5" on every row. Nett values are whole Rupiah. Stock rows have no Nett values.
 
@@ -48,7 +48,7 @@ channel, lob, tsh, ROFO_Category, Detail_Cat, Model_Type, Model_Type Detail, Mod
    Keep the `.github` folder; if you upload through the web page, drag the whole folder in.
 2. **Settings → Secrets and variables → Actions → New repository secret**.
    Name: `GCP_SA_KEY`. Value: the **same service-account JSON key you used for sbd_vivo**. It already has
-   BigQuery Data Viewer + Job User. The account needs read access to `region_data`.
+   BigQuery Data Viewer + Job User. The account needs read access to `region_data` and `sales_b2c`.
 3. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 4. If your repo name differs, change `const GITHUB_REPO = "rcm5DaMon/sales_vs_stock";` in `index.html`.
 5. **Actions → Refresh data → Run workflow**. After about 3 minutes the site is live at
