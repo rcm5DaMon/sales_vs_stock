@@ -18,7 +18,12 @@ src AS (
          AND s.order_date = (SELECT MAX(order_date)
                              FROM `e-smart-433113.region_data.sales_vs_stock_update`
                              WHERE line IN ('stock', 'stock_dc')))
-)
+),
+
+-- type_2 lives in the product master (same values as sales_vs_stock.type_2).
+-- If you add type_2 to sales_vs_stock_update later, use s.type_2 above and delete this CTE + the JOIN.
+mp AS (SELECT Code, ANY_VALUE(type_2) AS type_2
+       FROM `e-smart-433113.sales_b2c.master_product` GROUP BY Code)
 
 SELECT
   s.site_code,
@@ -27,9 +32,7 @@ SELECT
   IF(s.line = 'sales', CAST(s.month_billing AS STRING), s.line)     AS line,
   s.article_code,
   s.article_description,
-  IF(s.Product_Category = 'Device',
-     TRIM(CONCAT(IFNULL(TRIM(s.Model_Type_Detail), ''), ' ', IFNULL(TRIM(s.Model_Category), ''))),
-     s.article_description)                                          AS `Type 2`,
+  mp.type_2                                                          AS `Type 2`,
   s.brandname,
   s.SUM_quantity                                                     AS `Qty`,
   CAST(ROUND(s.SUM_total_nett_amount_exc_tax)  AS INT64)             AS `Nett Exc Tax`,
@@ -50,4 +53,5 @@ SELECT
   s.Model_Category,
   s.Colour
 FROM src s
+LEFT JOIN mp ON mp.Code = s.article_code
 ORDER BY IF(s.line = 'sales', 0, 1), s.line, s.order_date, s.site_code, s.article_code
